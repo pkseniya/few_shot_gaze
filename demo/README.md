@@ -1,3 +1,24 @@
+## Reality check of SotA DNN Gaze estimator
+### 1. Repeat Realtime Demo Instructions 1 (Setup), 2a (Camera calibration), 3 (Download pre-trained models for FAZE)
+
+It is tested with Ubuntu 20.04, pytorch v2.1.2, python v3.8.10.
+
+### 2. Collect dataset
+Create a directory named `data` inside the `demo` directory:
+
+    mkdir demo/data
+
+Collect a dataset that includes images, where the user is looking on the screen, and the coordinates of the points on the screen. 
+
+    python data_collector.py
+
+### 3. Check generalization
+You can evaluate the loss on different datasets using: 
+
+    python run_estimator.py
+    
+You can also evaluate the loss on multiple datasets at once by preparing several in advance.
+
 ## Realtime Demo Instructions
 
 ### 1. Setup
