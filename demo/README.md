@@ -11,13 +11,17 @@ Create a directory named `data` inside the `demo` directory:
 Collect a dataset that includes images, where the user is looking on the screen, and the coordinates of the points on the screen. 
 
     python data_collector.py
+    
+### 3. Place the camera calibration file in each dataset folder. 
 
-### 3. Check generalization
+You need to place the file `calib_cam.pkl` generated after camera calibration into the folders containing the datasets.
+
+### 4. Check generalization
 You can evaluate the loss on different datasets using: 
 
     python run_estimator.py
     
-You can also evaluate the loss on multiple datasets at once by preparing several in advance.
+You can also evaluate the loss on multiple datasets at once by preparing several in advance. Our [dataset](https://disk.yandex.ru/d/JLygJKU2PIaUUg)
 
 ## Realtime Demo Instructions
 
