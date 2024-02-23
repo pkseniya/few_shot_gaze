@@ -145,6 +145,8 @@ class landmarks:
         preds = preds[idx_300vw, :]
 
         return preds
+    
+
 
     def plot_markers(self, img, markers, color=(0, 0, 255), radius=3, drawline=False):
         # plot all 68 pts on the face image
@@ -156,7 +158,7 @@ class landmarks:
             y = markers[i, 1]
             # cv2.circle(img, (x, y), radius, color)
             font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(img, str(i), (x, y), font, 0.3, (255, 0, 0), 1, cv2.LINE_AA)
+            cv2.putText(img, str(i), (int(x), int(y)), font, 0.3, (255, 0, 0), 1, cv2.LINE_AA)
 
         if drawline:
             def draw_line(start, end):
@@ -166,7 +168,7 @@ class landmarks:
                     x2 = markers[i + 1, 0]
                     y2 = markers[i + 1, 1]
                     cv2.line(img, (x1, y1), (x2, y2), color)
-
+                    
             draw_line(0, 16)
             draw_line(17, 21)
             draw_line(22, 26)

@@ -77,10 +77,10 @@ class PnPHeadPoseEstimator(object):
         cwd = os.path.dirname(__file__)
         base_dir = cwd + '/ext/eos'
         self.model = eos.morphablemodel.load_model(
-            base_dir + '/share/sfm_shape_3448.bin')
+            'ext/eos' + '/share/sfm_shape_3448.bin')
         self.shape_model = self.model.get_shape_model()
         self.landmarks_mapper = eos.core.LandmarkMapper(
-            base_dir + '/share/ibug_to_sfm.txt')
+            'ext/eos' + '/share/ibug_to_sfm.txt')
         self.sfm_points_ibug_subset = np.array([
             self.shape_model.get_mean_at_point(
                 int(self.landmarks_mapper.convert(str(d)))

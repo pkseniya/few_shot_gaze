@@ -136,11 +136,11 @@ def collect_data(cap, mon, calib_points=9, rand_points=5):
             THREAD_RUNNING = False
             th.join()
     cv2.destroyAllWindows()
-
+    
     return calib_data
 
 
-def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, steps=1000, lr=1e-4, show=False):
+def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, steps=1000, lr=1e-4, mode=''):
 
     # collect person calibration data
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -167,7 +167,7 @@ def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, step
     fout.close()
 
     vid_cap = cv2.VideoCapture('%s_calib.avi' % subject)
-    data = frame_processor.process(subject, vid_cap, mon, device, gaze_network, por_available=True, show=show)
+    data = frame_processor.process(subject, vid_cap, mon, device, gaze_network, por_available=True, mode=mode)
     vid_cap.release()
 
     n = len(data['image_a'])
