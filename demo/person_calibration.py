@@ -98,7 +98,7 @@ def collect_data(cap, mon, calib_points=9, rand_points=5):
         img, g_t = create_image(mon, direction, i, (0, 0, 0), grid=True, total=calib_points)
         cv2.imshow('image', img)
         key_press = cv2.waitKey(0)
-        if key_press == keys[direction]:
+        if (key_press == keys[direction]) and (len(frames) >= 10):
             THREAD_RUNNING = False
             th.join()
             calib_data['frames'].append(frames)
@@ -123,7 +123,7 @@ def collect_data(cap, mon, calib_points=9, rand_points=5):
         img, g_t = create_image(mon, direction, i, (0, 0, 0), grid=False, total=rand_points)
         cv2.imshow('image', img)
         key_press = cv2.waitKey(0)
-        if key_press == keys[direction]:
+        if key_press == keys[direction] and (len(frames) >= 10):
             THREAD_RUNNING = False
             th.join()
             calib_data['frames'].append(frames)
@@ -146,6 +146,7 @@ def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, step
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter('%s_calib.avi' % subject, fourcc, 30.0, (640, 480))
     target = []
+    n_points = len(data['frames'])
     for index, frames in enumerate(data['frames']):
         n = 0
         for i in range(len(frames) - 10, len(frames)):
@@ -171,7 +172,7 @@ def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, step
     vid_cap.release()
 
     n = len(data['image_a'])
-    assert n==130, "Face not detected correctly. Collect calibration data again."
+    assert n>=n_points*10, "Face not detected correctly. Collect calibration data again."
     _, c, h, w = data['image_a'][0].shape
     img = np.zeros((n, c, h, w))
     gaze_a = np.zeros((n, 2))
