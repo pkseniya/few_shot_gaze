@@ -105,6 +105,9 @@ class FrameProcesser:
         if mode =='click':
             x_prev, y_prev = 0, 0
             thr = 100
+            time_thres = 25
+            start = time.perf_counter()
+            num_clicks = 0
 
         g_t = None
         data = {'image_a': [], 'gaze_a': [], 'head_a': [], 'R_gaze_a': [], 'R_head_a': []}
@@ -115,7 +118,8 @@ class FrameProcesser:
         frames_read = 0
         ret, img = cap.read()
         while ret:
-            
+            if por_available and frames_read >= len(targets): break
+            if mode == 'click' and time.perf_counter() - start > time_thres: break
             img = self.undistorter.apply(img)
             if por_available:
                 g_t = targets[frames_read]
@@ -243,8 +247,12 @@ class FrameProcesser:
                         pyautogui.moveTo(x_pixel_hat, y_pixel_hat)
 
                         if dist < thr:
-                            pyautogui.click()
-                            print("click")
+                            num_clicks += 1
+                            if num_clicks == 2:
+                                pyautogui.click()
+                                print("click")
+                        else:
+                            num_clicks = 0
                         x_prev, y_prev = x_pixel_hat, y_pixel_hat
                     
                     elif mode == 'point':
