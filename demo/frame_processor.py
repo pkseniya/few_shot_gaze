@@ -112,8 +112,8 @@ class FrameProcesser:
         g_t = None
         data = {'image_a': [], 'gaze_a': [], 'head_a': [], 'R_gaze_a': [], 'R_head_a': []}
         if por_available:
-            f = open('./%s_calib_target.pkl' % subject, 'rb')
-            targets = pickle.load(f)
+            with open(f'./calibration_data/{subject}/{subject}_calib_target.pkl', 'rb') as f:
+                targets = pickle.load(f)
 
         frames_read = 0
         ret, img = cap.read()
@@ -253,7 +253,7 @@ class FrameProcesser:
                                 print("click")
                         else:
                             num_clicks = 0
-                        x_prev, y_prev = x_pixel_hat, y_pixel_hat
+                            x_prev, y_prev = x_pixel_hat, y_pixel_hat
                     
                     elif mode == 'point':
                         display = np.ones((mon.h_pixels, mon.w_pixels, 3), np.float32)
@@ -270,11 +270,11 @@ class FrameProcesser:
                         cv2.imshow('por', display)
 
                         # also show the face:
-                        # cv2.rectangle(img, (int(face_location[0]), int(face_location[1])),
-                        #             (int(face_location[2]), int(face_location[3])), (255, 0, 0), 2)
-                        # self.landmarks_detector.plot_markers(img, pts)
-                        # self.head_pose_estimator.drawPose(img, rvec, tvec, self.cam_calib['mtx'], np.zeros((1, 4)))
-                        # cv2.imshow('image', img)
+                        cv2.rectangle(img, (int(face_location[0]), int(face_location[1])),
+                                    (int(face_location[2]), int(face_location[3])), (255, 0, 0), 2)
+                        self.landmarks_detector.plot_markers(img, pts)
+                        self.head_pose_estimator.drawPose(img, rvec, tvec, self.cam_calib['mtx'], np.zeros((1, 4)))
+                        cv2.imshow('image', img)
 
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         cv2.destroyAllWindows()

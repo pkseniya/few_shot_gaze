@@ -12,6 +12,7 @@ import sys
 import time
 import warnings
 from os import path
+from pathlib import Path
 from subprocess import call
 
 import cv2
@@ -114,10 +115,11 @@ if __name__ == '__main__':
     # collect person calibration data and fine-
     # tune gaze network
     subject = args.subject if args.subject else 'user'
+    Path( f'calibration_data/{subject}' ).mkdir( parents=True, exist_ok=True)        
 
     if not args.data_path:
         data = collect_data(cam_cap, mon, *args.num_points)
-        joblib.dump(data, f'{subject}_calib_data.pkl')
+        joblib.dump(data, f'calibration_data/{subject}/{subject}_calib_data.pkl')
     else:
         data = joblib.load(args.data_path)
     # adjust steps and lr for best results

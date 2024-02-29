@@ -6,14 +6,15 @@
 # Code written by Shalini De Mello.
 # --------------------------------------------------------
 
+import pickle
+import random
+import sys
+import threading
+
 import cv2
 import numpy as np
-import random
-import threading
-import pickle
-import sys
-
 import torch
+
 sys.path.append("../src")
 from losses import GazeAngularLoss
 
@@ -144,7 +145,7 @@ def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, step
 
     # collect person calibration data
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter('%s_calib.avi' % subject, fourcc, 30.0, (640, 480))
+    out = cv2.VideoWriter(f'calibration_data/{subject}/{subject}_calib.avi', fourcc, 30.0, (640, 480))
     target = []
     n_points = len(data['frames'])
     for index, frames in enumerate(data['frames']):
@@ -163,11 +164,11 @@ def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, step
             n += 1
     cv2.destroyAllWindows()
     out.release()
-    fout = open('%s_calib_target.pkl' % subject, 'wb')
+    fout = open(f'calibration_data/{subject}/{subject}_calib_target.pkl', 'wb')
     pickle.dump(target, fout)
     fout.close()
 
-    vid_cap = cv2.VideoCapture('%s_calib.avi' % subject)
+    vid_cap = cv2.VideoCapture(f'calibration_data/{subject}/{subject}_calib.avi')
     data = frame_processor.process(subject, vid_cap, mon, device, gaze_network, por_available=True, mode=mode)
     vid_cap.release()
 
@@ -249,7 +250,8 @@ def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, step
             valid_loss = loss(input_dict_valid, output_dict).cpu()
             print('%04d> Train: %.2f, Validation: %.2f' %
                   (i+1, train_loss.item(), valid_loss.item()))
-    torch.save(gaze_network.state_dict(), '%s_gaze_network.pth.tar' % subject)
+            
+    torch.save(gaze_network.state_dict(), f'calibration_data/{subject}/{subject}_gaze_network.pth.tar')
     torch.cuda.empty_cache()
 
     return gaze_network

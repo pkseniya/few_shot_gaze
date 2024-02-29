@@ -11,7 +11,7 @@ def parse_arguments():
     parser.add_argument("-dp", "--data_path", type=str, default=None, help="Path to data if collect_data")
     parser.add_argument("-ftp", "--fine_tuning_path", type=str, default=None, help="Person-specific pretrained weights")
     parser.add_argument("-m", "--mode", type=str, choices=["click", "point", "train"], default="point", help="run mode")
-    parser.add_argument("-s", "--subject", type=str, default=None, help="Name of subject")
+    parser.add_argument("-n", "--subject", type=str, default=None, help="Name of subject")
     parser.add_argument("-p", "--num_points", type=int, nargs=2, default=[9, 4], help="Two numbers of calibration points separated by comma")
 
     args = parser.parse_args()
