@@ -6,14 +6,15 @@
 # Code written by Shalini De Mello.
 # --------------------------------------------------------
 
+import pickle
+import random
+import sys
+import threading
+
 import cv2
 import numpy as np
-import random
-import threading
-import pickle
-import sys
-
 import torch
+
 sys.path.append("../src")
 from losses import GazeAngularLoss
 
@@ -98,7 +99,7 @@ def collect_data(cap, mon, calib_points=9, rand_points=5):
         img, g_t = create_image(mon, direction, i, (0, 0, 0), grid=True, total=calib_points)
         cv2.imshow('image', img)
         key_press = cv2.waitKey(0)
-        if key_press == keys[direction]:
+        if (key_press == keys[direction]) and (len(frames) >= 10):
             THREAD_RUNNING = False
             th.join()
             calib_data['frames'].append(frames)
@@ -123,7 +124,7 @@ def collect_data(cap, mon, calib_points=9, rand_points=5):
         img, g_t = create_image(mon, direction, i, (0, 0, 0), grid=False, total=rand_points)
         cv2.imshow('image', img)
         key_press = cv2.waitKey(0)
-        if key_press == keys[direction]:
+        if key_press == keys[direction] and (len(frames) >= 10):
             THREAD_RUNNING = False
             th.join()
             calib_data['frames'].append(frames)
@@ -136,16 +137,17 @@ def collect_data(cap, mon, calib_points=9, rand_points=5):
             THREAD_RUNNING = False
             th.join()
     cv2.destroyAllWindows()
-
+    
     return calib_data
 
 
-def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, steps=1000, lr=1e-4, show=False):
+def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, steps=1000, lr=1e-4, mode=''):
 
     # collect person calibration data
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter('%s_calib.avi' % subject, fourcc, 30.0, (640, 480))
+    out = cv2.VideoWriter(f'calibration_data/{subject}/{subject}_calib.avi', fourcc, 30.0, (640, 480))
     target = []
+    n_points = len(data['frames'])
     for index, frames in enumerate(data['frames']):
         n = 0
         for i in range(len(frames) - 10, len(frames)):
@@ -162,16 +164,16 @@ def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, step
             n += 1
     cv2.destroyAllWindows()
     out.release()
-    fout = open('%s_calib_target.pkl' % subject, 'wb')
+    fout = open(f'calibration_data/{subject}/{subject}_calib_target.pkl', 'wb')
     pickle.dump(target, fout)
     fout.close()
 
-    vid_cap = cv2.VideoCapture('%s_calib.avi' % subject)
-    data = frame_processor.process(subject, vid_cap, mon, device, gaze_network, por_available=True, show=show)
+    vid_cap = cv2.VideoCapture(f'calibration_data/{subject}/{subject}_calib.avi')
+    data = frame_processor.process(subject, vid_cap, mon, device, gaze_network, por_available=True, mode=mode)
     vid_cap.release()
 
     n = len(data['image_a'])
-    assert n==130, "Face not detected correctly. Collect calibration data again."
+    assert n>=n_points*10, "Face not detected correctly. Collect calibration data again."
     _, c, h, w = data['image_a'][0].shape
     img = np.zeros((n, c, h, w))
     gaze_a = np.zeros((n, 2))
@@ -248,7 +250,8 @@ def fine_tune(subject, data, frame_processor, mon, device, gaze_network, k, step
             valid_loss = loss(input_dict_valid, output_dict).cpu()
             print('%04d> Train: %.2f, Validation: %.2f' %
                   (i+1, train_loss.item(), valid_loss.item()))
-    torch.save(gaze_network.state_dict(), '%s_gaze_network.pth.tar' % subject)
+            
+    torch.save(gaze_network.state_dict(), f'calibration_data/{subject}/{subject}_gaze_network.pth.tar')
     torch.cuda.empty_cache()
 
     return gaze_network

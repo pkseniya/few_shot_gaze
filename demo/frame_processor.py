@@ -6,28 +6,71 @@
 # Code written by Shalini De Mello.
 # --------------------------------------------------------
 
-import cv2
-from subprocess import call
-import numpy as np
-from os import path
+import os
 import pickle
 import sys
-import os
+import time
+from os import path
+from subprocess import call
+
+import cv2
+import numpy as np
+import pyautogui
 import torch
 
-import pyautogui
+pyautogui.FAILSAFE = False
 from math import sqrt
 
 sys.path.append("ext/eth")
-from undistorter import Undistorter
-from KalmanFilter1D import Kalman1D
-
 from face import face
-from landmarks import landmarks
 from head import PnPHeadPoseEstimator
+from KalmanFilter1D import Kalman1D
+from landmarks import landmarks
 from normalization import normalize
+from undistorter import Undistorter
 
-class frame_processer:
+
+def preprocess_image(image):
+    ycrcb = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
+    ycrcb[:, :, 0] = cv2.equalizeHist(ycrcb[:, :, 0])
+    image = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
+    # cv2.imshow('processed patch', image)
+
+    image = np.transpose(image, [2, 0, 1])  # CxHxW
+    image = 2.0 * image / 255.0 - 1
+    return image
+
+# Functions to calculate relative rotation matrices for gaze dir. and head pose
+def R_x(theta):
+    sin_ = np.sin(theta)
+    cos_ = np.cos(theta)
+    return np.array([
+        [1., 0., 0.],
+        [0., cos_, -sin_],
+        [0., sin_, cos_]
+    ]).astype(np.float32)
+
+def R_y(phi):
+    sin_ = np.sin(phi)
+    cos_ = np.cos(phi)
+    return np.array([
+        [cos_, 0., sin_],
+        [0., 1., 0.],
+        [-sin_, 0., cos_]
+    ]).astype(np.float32)
+
+def calculate_rotation_matrix(e):
+    return np.matmul(R_y(e[1]), R_x(e[0]))
+
+def pitchyaw_to_vector(pitchyaw):
+
+    vector = np.zeros((3, 1))
+    vector[0, 0] = np.cos(pitchyaw[0]) * np.sin(pitchyaw[1])
+    vector[1, 0] = np.sin(pitchyaw[0])
+    vector[2, 0] = np.cos(pitchyaw[0]) * np.cos(pitchyaw[1])
+    return vector
+
+class FrameProcesser:
 
     def __init__(self, cam_calib):
 
@@ -58,19 +101,25 @@ class frame_processer:
         self.head_pose_estimator = PnPHeadPoseEstimator()
 
 
-    def process(self, subject, cap, mon, device, gaze_network, por_available=False, show=False):
-        x_prev, y_prev = 0, 0
-        thr = 100
+    def process(self, subject, cap, mon, device, gaze_network, por_available=False, mode='click'):
+        if mode =='click':
+            x_prev, y_prev = 0, 0
+            thr = 100
+            time_thres = 25
+            start = time.perf_counter()
+            num_clicks = 0
 
         g_t = None
         data = {'image_a': [], 'gaze_a': [], 'head_a': [], 'R_gaze_a': [], 'R_head_a': []}
         if por_available:
-            f = open('./%s_calib_target.pkl' % subject, 'rb')
-            targets = pickle.load(f)
+            with open(f'./calibration_data/{subject}/{subject}_calib_target.pkl', 'rb') as f:
+                targets = pickle.load(f)
 
         frames_read = 0
         ret, img = cap.read()
         while ret:
+            if por_available and frames_read >= len(targets): break
+            if mode == 'click' and time.perf_counter() - start > time_thres: break
             img = self.undistorter.apply(img)
             if por_available:
                 g_t = targets[frames_read]
@@ -120,49 +169,12 @@ class frame_processer:
                 [patch, h_n, g_n, inverse_M, gaze_cam_origin, gaze_cam_target] = normalize(entry, head_pose)
                 # cv2.imshow('raw patch', patch)
 
-                def preprocess_image(image):
-                    ycrcb = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
-                    ycrcb[:, :, 0] = cv2.equalizeHist(ycrcb[:, :, 0])
-                    image = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
-                    # cv2.imshow('processed patch', image)
-
-                    image = np.transpose(image, [2, 0, 1])  # CxHxW
-                    image = 2.0 * image / 255.0 - 1
-                    return image
 
                 # estimate the PoR using the gaze network
                 processed_patch = preprocess_image(patch)
                 processed_patch = processed_patch[np.newaxis, :, :, :]
 
-                # Functions to calculate relative rotation matrices for gaze dir. and head pose
-                def R_x(theta):
-                    sin_ = np.sin(theta)
-                    cos_ = np.cos(theta)
-                    return np.array([
-                        [1., 0., 0.],
-                        [0., cos_, -sin_],
-                        [0., sin_, cos_]
-                    ]).astype(np.float32)
-
-                def R_y(phi):
-                    sin_ = np.sin(phi)
-                    cos_ = np.cos(phi)
-                    return np.array([
-                        [cos_, 0., sin_],
-                        [0., 1., 0.],
-                        [-sin_, 0., cos_]
-                    ]).astype(np.float32)
-
-                def calculate_rotation_matrix(e):
-                    return np.matmul(R_y(e[1]), R_x(e[0]))
-
-                def pitchyaw_to_vector(pitchyaw):
-
-                    vector = np.zeros((3, 1))
-                    vector[0, 0] = np.cos(pitchyaw[0]) * np.sin(pitchyaw[1])
-                    vector[1, 0] = np.sin(pitchyaw[0])
-                    vector[2, 0] = np.cos(pitchyaw[0]) * np.cos(pitchyaw[1])
-                    return vector
+                
 
                 # compute the ground truth POR if the
                 # ground truth is available
@@ -201,48 +213,76 @@ class frame_processer:
                     data['R_gaze_a'].append(R_gaze_a)
                     data['R_head_a'].append(R_head_a)
 
+                if mode in ['click', 'point']:
                 # compute eye gaze and point of regard
-                for k, v in input_dict.items():
-                    input_dict[k] = torch.FloatTensor(v).to(device).detach()
+                    for k, v in input_dict.items():
+                        input_dict[k] = torch.FloatTensor(v).to(device).detach()
 
-                gaze_network.eval()
-                output_dict = gaze_network(input_dict)
-                output = output_dict['gaze_a_hat']
-                g_cnn = output.data.cpu().numpy()
-                g_cnn = g_cnn.reshape(3, 1)
-                g_cnn /= np.linalg.norm(g_cnn)
+                    gaze_network.eval()
+                    output_dict = gaze_network(input_dict)
+                    output = output_dict['gaze_a_hat']
+                    g_cnn = output.data.cpu().numpy()
+                    g_cnn = g_cnn.reshape(3, 1)
+                    g_cnn /= np.linalg.norm(g_cnn)
 
-                # compute the POR on z=0 plane
-                g_n_forward = -g_cnn
-                g_cam_forward = inverse_M * g_n_forward
-                g_cam_forward = g_cam_forward / np.linalg.norm(g_cam_forward)
+                    # compute the POR on z=0 plane
+                    g_n_forward = -g_cnn
+                    g_cam_forward = inverse_M * g_n_forward
+                    g_cam_forward = g_cam_forward / np.linalg.norm(g_cam_forward)
 
-                d = -gaze_cam_origin[2] / g_cam_forward[2]
-                por_cam_x = gaze_cam_origin[0] + d * g_cam_forward[0]
-                por_cam_y = gaze_cam_origin[1] + d * g_cam_forward[1]
-                por_cam_z = 0.0
+                    d = -gaze_cam_origin[2] / g_cam_forward[2]
+                    por_cam_x = gaze_cam_origin[0] + d * g_cam_forward[0]
+                    por_cam_y = gaze_cam_origin[1] + d * g_cam_forward[1]
+                    por_cam_z = 0.0
 
-                x_pixel_hat, y_pixel_hat = mon.camera_to_monitor(por_cam_x, por_cam_y)
+                    x_pixel_hat, y_pixel_hat = mon.camera_to_monitor(por_cam_x, por_cam_y)
 
-                output_tracked = self.kalman_filter_gaze[0].update(x_pixel_hat + 1j * y_pixel_hat)
-                x_pixel_hat, y_pixel_hat = np.ceil(np.real(output_tracked)), np.ceil(np.imag(output_tracked))
-                # calculate eye movement distance
-                dist = sqrt((x_pixel_hat - x_prev) ** 2 + (y_pixel_hat - y_prev) ** 2)
-                print(dist, x_pixel_hat, y_pixel_hat)
-                pyautogui.moveTo(x_pixel_hat, y_pixel_hat)
+                    output_tracked = self.kalman_filter_gaze[0].update(x_pixel_hat + 1j * y_pixel_hat)
+                    x_pixel_hat, y_pixel_hat = np.ceil(np.real(output_tracked)), np.ceil(np.imag(output_tracked))
+                    
+                    if mode == 'click':
+                        # calculate eye movement distance
+                        dist = sqrt((x_pixel_hat - x_prev) ** 2 + (y_pixel_hat - y_prev) ** 2)
+                        print(dist, x_pixel_hat, y_pixel_hat)
+                        pyautogui.moveTo(x_pixel_hat, y_pixel_hat)
 
-                if dist < thr:
-                    pyautogui.click()
-                    print("click")
-                x_prev, y_prev = x_pixel_hat, y_pixel_hat
+                        if dist < thr:
+                            num_clicks += 1
+                            if num_clicks == 2:
+                                pyautogui.click()
+                                print("click")
+                        else:
+                            num_clicks = 0
+                            x_prev, y_prev = x_pixel_hat, y_pixel_hat
+                    
+                    elif mode == 'point':
+                        display = np.ones((mon.h_pixels, mon.w_pixels, 3), np.float32)
+                        h, w, c = patch.shape
+                        display[0:h, int(mon.w_pixels/2 - w/2):int(mon.w_pixels/2 + w/2), :] = 1.0 * patch / 255.0
+                        font = cv2.FONT_HERSHEY_SIMPLEX
+                        if type(g_n) is np.ndarray:
+                            cv2.putText(display, '.', (int(x_pixel_gt), int(y_pixel_gt)), font, 0.5, (0, 0, 0), 10, cv2.LINE_AA)
+                        cv2.putText(display, f'.', (int(x_pixel_hat), int(y_pixel_hat)), font, 0.5, (0, 0, 255), 10, cv2.LINE_AA)
+                        cv2.namedWindow("por", cv2.WINDOW_NORMAL)
+                        # cv2.putText(display, f'.', (int(x_pixel_hat), int(y_pixel_hat)), font, 0.5, (0, 0, 255), 10, cv2.LINE_AA)
 
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    cv2.destroyAllWindows()
-                    cap.release()
-                    break
+                        cv2.setWindowProperty("por", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+                        cv2.imshow('por', display)
 
-            # read the next frame
-            ret, img = cap.read()
+                        # also show the face:
+                        cv2.rectangle(img, (int(face_location[0]), int(face_location[1])),
+                                    (int(face_location[2]), int(face_location[3])), (255, 0, 0), 2)
+                        self.landmarks_detector.plot_markers(img, pts)
+                        self.head_pose_estimator.drawPose(img, rvec, tvec, self.cam_calib['mtx'], np.zeros((1, 4)))
+                        cv2.imshow('image', img)
+
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        cv2.destroyAllWindows()
+                        cap.release()
+                        break
+
+                # read the next frame
+                ret, img = cap.read()
 
         return data
 
